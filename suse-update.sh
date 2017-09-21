@@ -2,13 +2,16 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 1.00
+# Version: 1.01
 #  Author: Dan Huckson
 #    Date: 2017/09/20
 ###############################################################################
 
+date_time=`date`
 start_time=$(date +%s)
-date >> /tmp/suse-update-timestamps.txt
+
+echo $date_time >> /tmp/suse-update-timestamps.txt
+echo -e "\nStart Time: $date_time\n" > /var/log/suse-update.log
 
 if [ -z "$1" ]; then VERBOSITY=0; else VERBOSITY=$1; fi
 
@@ -20,9 +23,9 @@ fi
 if (( $VERBOSITY )); then
     zypper refresh > /dev/nil
     echo Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories
-    zypper -v -n update --auto-agree-with-licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee /var/log/suse-update.log
+    zypper -v -n update --auto-agree-with-licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a /var/log/suse-update.log
 else
-    echo -e "\nRefreshing Repositories" | tee /var/log/suse-update.log
+    echo -e "\nRefreshing Repositories" | tee -a /var/log/suse-update.log
     echo -e "----------------------------------------" | tee -a /var/log/suse-update.log
     zypper refresh | cut -d"'" -f2 | tee -a /var/log/suse-update.log
     echo -e "----------------------------------------\n" | tee -a /var/log/suse-update.log

@@ -35,4 +35,4 @@ fi
 s=$[$(date +%s) - $start_time]; h=$[$s / 3600]; s=$[$s - $[$h * 3600]]; m=$[$s / 60]; s=$[$s - $[m * 60]]
 [ "$h" != '0' ] && hours=" $h hours" || hours=""
 [ "$m" != '0' ] && minutes=" $m minutes and" || minutes=""
-echo -e "\nTotal update time$hours$minutes $s seconds." | tee -a /var/log/suse-update.log
+echo -e "\nTotal run time$hours$minutes $s seconds." | tee -a /var/log/suse-update.log

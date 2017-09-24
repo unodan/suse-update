@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 1.21
+# Version: 1.23
 #  Author: Dan Huckson
 ###############################################################################
 
@@ -16,7 +16,7 @@ timestamp_file=/tmp/suse-update-timestamps.txt
 
 if [ ! -d "$log_directory" ]; then mkdir $log_directory; fi
 
-while getopts ":rk:" opt; do
+while getopts ":rvk:" opt; do
   case $opt in
     r)  reboot=1 
         ;;
@@ -24,11 +24,13 @@ while getopts ":rk:" opt; do
         log_file="$log_directory/$log_file_name-`date +%Y%m%d-%H%M%S`.log"
         if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
             echo "Please enter an interger value for the maximum number of log files to store."
-            echo "Example: You would use \"suse-update.sh -k 30\" to always keep the lastest 30 update log files."
+            echo "Example: You would use \"suse-update.sh -k 30\" to keep the lastest 30 update log files."
             exit 1
         fi
         
-        cd $log_directory && ls -tp | grep -v '/$' | tail -n +$maximum_log_files | xargs -d '\n' rm -- 
+        cd $log_directory && ls -tp | grep -v '/$' | tail -n +$maximum_log_files | xargs -d '\n' -r rm -- 
+        ;;
+    v)  verbosity=1 
         ;;
     \?)
         echo "Invalid option: -$OPTARG" >&2
@@ -44,14 +46,7 @@ done
 echo $date_time >> $timestamp_file
 echo -e "\nStart Time: $date_time\n" > $log_file
 
-if [ -z "$1" ]; then VERBOSITY=0; else VERBOSITY=$1; fi
-
-if (( $VERBOSITY > 1 )) || (( $VERBOSITY < 0 )); then
-    echo "Incorrect value entered."
-    exit
-fi
-
-if (( $VERBOSITY )); then
+if (( $verbosity )); then
     zypper refresh > /dev/nil
     echo Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories
     zypper -v -n update --auto-agree-with-licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log_file

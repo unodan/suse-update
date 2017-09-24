@@ -2,41 +2,42 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 1.20
+# Version: 1.21
 #  Author: Dan Huckson
 ###############################################################################
 
 date_time=`date`
 start_time=$(date +%s)
 
-log_file_name=suse-update.log
+log_file_name=suse-update
 log_directory=/var/log/suse-update
-log_file="$log_directory/$log_file_name"
-
+log_file="$log_directory/$log_file_name".log
 timestamp_file=/tmp/suse-update-timestamps.txt
 
 if [ ! -d "$log_directory" ]; then mkdir $log_directory; fi
 
 while getopts ":rk:" opt; do
   case $opt in
-    r)  reboot=1 ;;
+    r)  reboot=1 
+        ;;
     k)  maximum_log_files=$OPTARG
-        log_file="$log_directory/suse-update-`date +%Y%m%d-%H%M%S`.log"
+        log_file="$log_directory/$log_file_name-`date +%Y%m%d-%H%M%S`.log"
         if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
             echo "Please enter an interger value for the maximum number of log files to store."
             echo "Example: You would use \"suse-update.sh -k 30\" to always keep the lastest 30 update log files."
-            exit
+            exit 1
         fi
         
-        cd $log_directory
-        ls -tp | grep -v '/$' | tail -n +$maximum_log_files | xargs -d '\n' -r rm --
+        cd $log_directory && ls -tp | grep -v '/$' | tail -n +$maximum_log_files | xargs -d '\n' rm -- 
         ;;
     \?)
-      echo "Invalid option: -$OPTARG" >&2
-      exit 1 ;;
+        echo "Invalid option: -$OPTARG" >&2
+        exit 2 
+        ;;
     :)
-      echo "Option -$OPTARG requires an argument." >&2
-      exit 1 ;;
+        echo "Option -$OPTARG requires an argument." >&2
+        exit 3 
+        ;;
   esac
 done
 

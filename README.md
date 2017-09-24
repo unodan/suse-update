@@ -1,4 +1,10 @@
 # suse-update
-This script will update openSUSE tumbleweed with the newest packages. The script will refresh all enabled repositories and preform a system update none-interactively (automatically).
+This script will update openSUSE tumbleweed with the newest packages. 
+All enabled repositories will be refreshed before doing any updates none-interactively (automatically).
+Log files will be over writen unless the -k switch is used.
+After the script is finished it reboots the system unless the -r switch is used.
 
-You can setup CRON to run this script once a day if you like. Each time the script is ran though it over writes the log file from the previous run. Logs are located at /var/log/suse-update.log 
+Use CRON to run this script at scheduled times. 
+
+For example put the line below in /etc/crontab it will run the script a 3am and keep logs files for each run.
+"0 3 * * * root /home/user/scripts/suse-update.sh -k"

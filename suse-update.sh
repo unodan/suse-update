@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 1.27
+# Version: 1.28
 #  Author: Dan Huckson
 ###############################################################################
 date=`date`
@@ -31,15 +31,16 @@ while getopts ":rvhk:" opt; do
         echo -e "\t-h\t Display this help message"
         echo -e "\t-k\t Maximum number of log files to keep,"
         echo -e "\t\t this option must be supplied with a numeric value"
-        echo -e "\nExample:"
-        echo -e "  $script -vrk 30  output maximum info, reboot and keep the latest 30 log files.\n"
+        echo -e "\nExample: $script -vrk 30 "
+        echo -e "  output maximum info, reboot and keep the latest 30 log files."
         exit 10
         ;;
     k)  log="$directory/$name-`date +%Y%m%d-%H%M%S`.log"
         if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
-            echo "Please enter a positive interger value for the maximum number of log files to keep." >&2
-            echo "Example: You would use \"$script -k 30\" to keep the lastest 30 log files." >&2
-            echo "Use $script -h for more information." >&2
+            echo -e "\nPlease enter a positive interger value for the maximum number of log files to keep.\n" >&2
+            echo -e "Example: $script -vrk 30 " >&2
+            echo -e "  output maximum info, reboot and keep the latest 30 log files." >&2
+            echo -e "\nUse $script -h for more information." >&2
             exit 20
         fi
         cd $directory && ls -tp | grep -v '/$' | tail -n +$OPTARG | xargs -d '\n' -r rm -- 
@@ -77,6 +78,3 @@ s=$[$(date +%s) - $time]; h=$[$s / 3600]; s=$[$s - $[$h * 3600]]; m=$[$s / 60]; 
 echo -e "Total run time$hours$minutes $s seconds." | tee -a $log
 
 if (( $reboot )); then init 6; fi
-
-
-

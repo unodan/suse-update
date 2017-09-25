@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 1.23
+# Version: 1.24
 #  Author: Dan Huckson
 ###############################################################################
 
@@ -20,17 +20,16 @@ while getopts ":rvk:" opt; do
   case $opt in
     r)  reboot=1 
         ;;
+    v)  verbosity=1 
+        ;;
     k)  maximum_log_files=$OPTARG
         log_file="$log_directory/$log_file_name-`date +%Y%m%d-%H%M%S`.log"
         if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
-            echo "Please enter an interger value for the maximum number of log files to store."
-            echo "Example: You would use \"suse-update.sh -k 30\" to keep the lastest 30 update log files."
+            echo "Please enter an interger value for the maximum number of log files to keep."
+            echo "Example: You would use \"suse-update.sh -k 30\" to keep the lastest 30 log files."
             exit 1
         fi
-        
         cd $log_directory && ls -tp | grep -v '/$' | tail -n +$maximum_log_files | xargs -d '\n' -r rm -- 
-        ;;
-    v)  verbosity=1 
         ;;
     \?)
         echo "Invalid option: -$OPTARG" >&2
@@ -47,15 +46,15 @@ echo $date_time >> $timestamp_file
 echo -e "\nStart Time: $date_time\n" > $log_file
 
 if (( $verbosity )); then
-    zypper refresh > /dev/nil
-    echo Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories
-    zypper -v -n update --auto-agree-with-licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log_file
-else
     echo -e "\nRefreshing Repositories" | tee -a $log_file
     echo -e "----------------------------------------" | tee -a $log_file
     zypper refresh | cut -d"'" -f2 | tee -a $log_file
     echo -e "----------------------------------------\n" | tee -a $log_file
     zypper -v -n update --auto-agree-with-licenses | sed "/Unknown media type in type/d;s/^   //;/^Additional rpm output:/d" | sed ':a;N;$!ba;s/\n  / /g' | tee -a $log_file
+else
+    zypper refresh > /dev/nil
+    echo Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories
+    zypper -v -n update --auto-agree-with-licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log_file
 fi
 
 s=$[$(date +%s) - $start_time]; h=$[$s / 3600]; s=$[$s - $[$h * 3600]]; m=$[$s / 60]; s=$[$s - $[m * 60]]
@@ -63,4 +62,4 @@ s=$[$(date +%s) - $start_time]; h=$[$s / 3600]; s=$[$s - $[$h * 3600]]; m=$[$s /
 [ "$m" != '0' ] && minutes=" $m minutes and" || minutes=""
 echo -e "\nTotal run time$hours$minutes $s seconds." | tee -a $log_file
 
-if [ ! $reboot ]; then init 6; fi
+if [ $reboot ]; then init 6; fi

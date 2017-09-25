@@ -5,6 +5,7 @@
 # Version: 1.24
 #  Author: Dan Huckson
 ###############################################################################
+distribution="openSUSE tumbleweed"
 
 date_time=`date`
 start_time=$(date +%s)
@@ -16,11 +17,22 @@ timestamp_file=/tmp/suse-update-timestamps.txt
 
 if [ ! -d "$log_directory" ]; then mkdir $log_directory; fi
 
-while getopts ":rvk:" opt; do
+while getopts ":rvhk:" opt; do
   case $opt in
     r)  reboot=1 
         ;;
     v)  verbosity=1 
+        ;;
+    h)  echo -e "Usage: suse-update.sh [OPTION]..."
+        echo -e "Update $distribution with the latest packages"
+        echo -e "\n\t-r\t Reboot after update"
+        echo -e "\t-v\t Verbosity (show maximum information)"
+        echo -e "\t-h\t Display this help message"
+        echo -e "\t-k\t Maximum number of log files to keep,"
+        echo -e "\t\t this option must be supplied with a numeric value"
+        echo -e "\nExample:"
+        echo -e "  suse-update.sh -vrk 30  output maximum info, reboot and keep the latest 30 log files."
+        exit 4
         ;;
     k)  maximum_log_files=$OPTARG
         log_file="$log_directory/$log_file_name-`date +%Y%m%d-%H%M%S`.log"

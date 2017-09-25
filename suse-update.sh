@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 1.24
+# Version: 1.26
 #  Author: Dan Huckson
 ###############################################################################
 distribution="openSUSE tumbleweed"
@@ -23,7 +23,7 @@ while getopts ":rvhk:" opt; do
         ;;
     v)  verbosity=1 
         ;;
-    h)  echo -e "Usage: suse-update.sh [OPTION]..."
+    h)  echo -e "\nUsage: suse-update.sh [OPTION]..."
         echo -e "Update $distribution with the latest packages"
         echo -e "\n\t-r\t Reboot after update"
         echo -e "\t-v\t Verbosity (show maximum information)"
@@ -31,25 +31,25 @@ while getopts ":rvhk:" opt; do
         echo -e "\t-k\t Maximum number of log files to keep,"
         echo -e "\t\t this option must be supplied with a numeric value"
         echo -e "\nExample:"
-        echo -e "  suse-update.sh -vrk 30  output maximum info, reboot and keep the latest 30 log files."
-        exit 4
+        echo -e "  suse-update.sh -vrk 30  output maximum info, reboot and keep the latest 30 log files.\n"
+        exit 1
         ;;
     k)  maximum_log_files=$OPTARG
         log_file="$log_directory/$log_file_name-`date +%Y%m%d-%H%M%S`.log"
         if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
             echo "Please enter an interger value for the maximum number of log files to keep."
             echo "Example: You would use \"suse-update.sh -k 30\" to keep the lastest 30 log files."
-            exit 1
+            exit 2
         fi
         cd $log_directory && ls -tp | grep -v '/$' | tail -n +$maximum_log_files | xargs -d '\n' -r rm -- 
         ;;
     \?)
         echo "Invalid option: -$OPTARG" >&2
-        exit 2 
+        exit 3 
         ;;
     :)
         echo "Option -$OPTARG requires an argument." >&2
-        exit 3 
+        exit 4 
         ;;
   esac
 done

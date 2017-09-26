@@ -9,4 +9,3 @@ Example:
   output maximum info, reboot and keep the latest 30 log files. <br>
    <br>
 Use CRON to run this script at scheduled time.<br>
-0 3 * * * root /home/user/scripts/suse-update.sh -vrk 30<br>

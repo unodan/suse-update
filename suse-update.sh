@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 1.28
+# Version: 1.29
 #  Author: Dan Huckson
 ###############################################################################
 date=`date`
@@ -12,13 +12,12 @@ script=$(basename -- "$0")
 distribution="openSUSE tumbleweed"
 
 name=`echo $script | cut -f1 -d.`
-directory=/var/log/$name
-log="$directory/$name".log
-datestamp=/tmp/$name-datestamp.txt
+dir=/var/log/$name
+log="$dir/$name".log
 
-if [ ! -d "$directory" ]; then mkdir $directory; fi
+if [ ! -d "$dir" ]; then mkdir $dir; fi
 
-while getopts ":rvhk:" opt; do
+while getopts ":rvhk:l" opt; do
   case $opt in
     r)  reboot=1 
         ;;
@@ -28,6 +27,7 @@ while getopts ":rvhk:" opt; do
         echo -e "Update $distribution with the latest packages"
         echo -e "\n\t-r\t Reboot after update"
         echo -e "\t-v\t Verbosity (show maximum information)"
+        echo -e "\t-l\t Auto agree with licenses"
         echo -e "\t-h\t Display this help message"
         echo -e "\t-k\t Maximum number of log files to keep,"
         echo -e "\t\t this option must be supplied with a numeric value"
@@ -35,7 +35,7 @@ while getopts ":rvhk:" opt; do
         echo -e "  output maximum info, reboot and keep the latest 30 log files."
         exit 10
         ;;
-    k)  log="$directory/$name-`date +%Y%m%d-%H%M%S`.log"
+    k)  log="$dir/$name-`date +%Y%m%d-%H%M%S`.log"
         if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
             echo -e "\nPlease enter a positive interger value for the maximum number of log files to keep.\n" >&2
             echo -e "Example: $script -vrk 30 " >&2
@@ -43,7 +43,9 @@ while getopts ":rvhk:" opt; do
             echo -e "\nUse $script -h for more information." >&2
             exit 20
         fi
-        cd $directory && ls -tp | grep -v '/$' | tail -n +$OPTARG | xargs -d '\n' -r rm -- 
+        cd $dir && ls -tp | grep -v '/$' | tail -n +$OPTARG | xargs -d '\n' -r rm -- 
+        ;;
+    l)  auto_agree_with_licenses="--auto-agree-with-licenses"
         ;;
     \?)
         echo "Invalid option: -$OPTARG" >&2
@@ -58,18 +60,23 @@ while getopts ":rvhk:" opt; do
   esac
 done
 
-echo $date >> $datestamp
+echo $date >> /tmp/$name-datestamp.txt
 
 if (( $verbosity )); then
     echo -e "\nRefreshing Repositories" | tee -a $log
     echo -e "----------------------------------------" | tee -a $log
     zypper refresh | cut -d"'" -f2 | tee -a $log
     echo -e "----------------------------------------\n" | tee -a $log
-    zypper -v -n update --auto-agree-with-licenses | sed "/Unknown media type in type/d;s/^   //;/^Additional rpm output:/d" | sed ':a;N;$!ba;s/\n  / /g' | tee -a $log
+    
+    if [ ! -z $auto_agree_with_licenses ]; then
+        echo -e "Applying updates to the system without asking to confirm any licenses.\n" >&2 
+    fi
+    
+    zypper -v -n update $auto_agree_with_licenses | sed "/Unknown media type in type/d;s/^   //;/^Additional rpm output:/d" | sed ':a;N;$!ba;s/\n  / /g' | tee -a $log
 else
     zypper refresh > /dev/nil
     echo Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories
-    zypper -v -n update --auto-agree-with-licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log
+    zypper -v -n update $auto_agree_with_licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log
 fi
 
 s=$[$(date +%s) - $time]; h=$[$s / 3600]; s=$[$s - $[$h * 3600]]; m=$[$s / 60]; s=$[$s - $[m * 60]]

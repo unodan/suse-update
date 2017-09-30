@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 1.30
+# Version: 1.31
 #  Author: Dan Huckson
 ###############################################################################
 date=`date`
@@ -47,13 +47,11 @@ while getopts ":rvlhk:" opt; do
         cd $dir && ls -tp | grep -v '/$' | tail -n +$OPTARG | xargs -rd '\n' rm -- 
         ;;
     \?)
-        echo "Invalid option: -$OPTARG" >&2
-        echo "Use $script -h for more information." >&2
+        echo -e "Invalid option: -$OPTARG\nUse $script -h for more information." >&2
         exit 30
         ;;
     :)
-        echo "Option -$OPTARG requires an argument." >&2
-        echo "Use $script -h for more information." >&2
+        echo -e "Option -$OPTARG requires an argument.\nUse $script -h for more information." >&2
         exit 40
         ;;
   esac
@@ -68,19 +66,18 @@ if (( $verbosity )); then
     echo -e "\nRefreshing Repositories" | tee -a $log
     echo -e "----------------------------------------" | tee -a $log
     zypper refresh | cut -d"'" -f2 | tee -a $log
-    (( $? )) && { echo "An error occurred with (zypper refresh) exiting script." >&2; exit 50; } 
+    (( ${PIPESTATUS[0]} )) && { echo "An error occurred with (zypper refresh) exiting script." >&2; exit 50; } 
     echo -e "----------------------------------------\n" | tee -a $log
     
-    
     zypper -v -n update $auto_agree_with_licenses | sed "/Unknown media type in type/d;s/^   //;/^Additional rpm output:/d" | sed ':a;N;$!ba;s/\n  / /g' | tee -a $log
-    (( $? )) && { echo "An error occurred with (zypper update) exiting script."  >&2; exit 55; } 
+    (( ${PIPESTATUS[0]} )) && { echo "An error occurred with (zypper update) exiting script."  >&2; exit 55; } 
 else
     zypper refresh > /dev/nil
-    (( $? )) && { echo "An error occurred with (zypper refresh) exiting script."  >&2; exit 60; } 
+    (( ${PIPESTATUS[0]} )) && { echo "An error occurred with (zypper refresh) exiting script."  >&2; exit 60; } 
     echo Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories
     
     zypper -v -n update $auto_agree_with_licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log
-    (( $? )) && { echo "An error occurred with (zypper update) exiting script."  >&2; exit 65; } 
+    (( ${PIPESTATUS[0]} )) && { echo "An error occurred with (zypper update) exiting script."  >&2; exit 65; } 
 fi
 
 s=$[$(date +%s) - $time]; h=$[$s / 3600]; s=$[$s - $[$h * 3600]]; m=$[$s / 60]; s=$[$s - $[m * 60]]

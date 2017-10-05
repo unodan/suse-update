@@ -38,8 +38,8 @@ while getopts ":rlvak:sh" opt; do
     
         ! [[ $maximum_log_files =~ ^[0-9]+$ ]] && {
             echo -e "ERROR: Please enter a positive interger value for the maximum number of log files to keep.\n" >&2
-            echo -e "Example: $script -vrk 30 " >&2
-            echo -e "  output maximum info, reboot and keep the latest 30 log files." >&2
+            echo -e "Example: $script -vsk 30 " >&2
+            echo -e "  output maximum info, restart system after updates and keep the latest 30 log files." >&2
             echo -e "\nUse $script -h for more information." >&2
             exit 10
         }

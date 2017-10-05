@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 2.0
+# Version: 2.01
 #  Author: Dan Huckson
 ###############################################################################
 date=`date`
@@ -37,7 +37,7 @@ while getopts ":rlvak:sh" opt; do
     k)  maximum_log_files=$OPTARG    
     
         ! [[ $maximum_log_files =~ ^[0-9]+$ ]] && {
-            echo -e "\nERROR: Please enter a positive interger value for the maximum number of log files to keep.\n" >&2
+            echo -e "ERROR: Please enter a positive interger value for the maximum number of log files to keep.\n" >&2
             echo -e "Example: $script -vrk 30 " >&2
             echo -e "  output maximum info, reboot and keep the latest 30 log files." >&2
             echo -e "\nUse $script -h for more information." >&2
@@ -57,14 +57,14 @@ while getopts ":rlvak:sh" opt; do
         echo -e "\t\t this option must be supplied with a numeric value"
         echo -e "\t-s\t Restart system after updates"
         echo -e "\t-h\t Display this help message"
-        echo -e "\nExample: $script -vrk 30 "
-        echo -e "  output maximum info, reboot and keep the latest 30 log files."
+        echo -e "\nExample: $script -vsk 30 "
+        echo -e "  output maximum info, restart system after updates and keep the latest 30 log files."
         exit 20
         ;;
-    \?) echo -e "Invalid option: -$OPTARG\nUse $script -h for more information." >&2
+    \?) echo -e "ERROR: Invalid option [ -$OPTARG ]\nUse $script -h for more information." >&2
         exit 30
         ;;
-    :)  echo -e "Option -$OPTARG requires an argument.\nUse $script -h for more information." >&2
+    :)  echo -e "ERROR: Option [ -$OPTARG ] requires an argument.\nUse $script -h for more information." >&2
         exit 40
         ;;
   esac

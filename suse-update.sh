@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 2.01
+# Version: 2.03
 #  Author: Dan Huckson
 ###############################################################################
 date=`date`
@@ -11,10 +11,10 @@ script=$(basename -- "$0")
 distribution="openSUSE tumbleweed"
 
 name=`echo $script | cut -f1 -d.`
-dir=/var/log/$name
-log=$dir/$name.log
+logs=/var/log/$name
+log=$logs/$name.log
 
-[ ! -d "$dir" ] && mkdir $dir; 
+[ ! -d "$logs" ] && mkdir $logs; 
 
 while getopts ":rlvak:sh" opt; do
   case $opt in
@@ -24,14 +24,12 @@ while getopts ":rlvak:sh" opt; do
         ;;
     v)  verbosity=1 
         ;;
-    a)  number_of_log_files=`ls $dir/$name*.log 2> /dev/null | wc -l`
+    a)  number_of_log_files=`ls $logs/$name*.log 2> /dev/null | wc -l`
     
         (( $maximum_log_files )) && (( $number_of_log_files >= $maximum_log_files )) && {
-            [ ! -d $dir/archive ] && mkdir -p $dir/archive; 
-            
-            logs="$name-logs-`date +%Y%m%d-%H%M%S`" 
-            ls $dir/*.log | xargs zip -q $dir/archive/$logs.zip
-            rm $dir/*.log
+            [ ! -d $logs/archive ] && mkdir -p $logs/archive; 
+            cd $logs
+            ls *.log | xargs zip -q "archive/$name-logs-`date +%Y%m%d-%H%M%S`.zip" && rm *.log
         }
         ;;
     k)  maximum_log_files=$OPTARG    
@@ -43,7 +41,7 @@ while getopts ":rlvak:sh" opt; do
             echo -e "\nUse $script -h for more information." >&2
             exit 10
         }
-        log="$dir/$name-`date +%Y%m%d-%H%M%S`.log"
+        log="$logs/$name-`date +%Y%m%d-%H%M%S`.log"
         ;;
     s)  reboot=1 
         ;;
@@ -61,7 +59,7 @@ while getopts ":rlvak:sh" opt; do
         echo -e "  output maximum info, restart system after updates and keep the latest 30 log files."
         exit 20
         ;;
-    \?) echo -e "ERROR: Invalid option [ -$OPTARG ]\nUse $script -h for more information." >&2
+   \?)  echo -e "ERROR: Invalid option [ -$OPTARG ]\nUse $script -h for more information." >&2
         exit 30
         ;;
     :)  echo -e "ERROR: Option [ -$OPTARG ] requires an argument.\nUse $script -h for more information." >&2
@@ -98,7 +96,7 @@ echo -e "Start: $date" | tee -a $log
 }
 
 (( $maximum_log_files )) && {
-    cd $dir && ls -tp | grep -v '/$' | tail -n +$((maximum_log_files+1)) | xargs -rd '\n' rm -- 
+    cd $logs && ls -tp | grep -v '/$' | tail -n +$((maximum_log_files+1)) | xargs -rd '\n' rm -- 
 }
 
 s=$[$(date +%s) - $time]; h=$[$s / 3600]; s=$[$s - $[$h * 3600]]; m=$[$s / 60]; s=$[$s - $[m * 60]]
@@ -106,6 +104,9 @@ s=$[$(date +%s) - $time]; h=$[$s / 3600]; s=$[$s - $[$h * 3600]]; m=$[$s / 60]; 
 [ "$m" != '0' ] && minutes=" $m minutes and" || minutes=""
 
 echo -e "\nEnd: `date`\n" | tee -a $log
-echo -e "Total run time$hours$minutes $s seconds." | tee -a $log
+printf "Finished, total run time$hours$minutes $s seconds," | tee -a $log
 
-(( $reboot )) && init 6;
+(( $reboot )) && { 
+    echo " restarting the system." | tee -a $log
+    init 6;
+} || echo " system was not restarted." | tee -a $log

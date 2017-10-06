@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 2.04
+# Version: 2.05
 #  Author: Dan Huckson
 ###############################################################################
 date=`date`
@@ -122,7 +122,7 @@ echo -e "\nEnd: `date`\n" | tee -a $log
 echo -e "Finished, total run time$hours$minutes $s seconds." | tee -a $log
 
 (( $reboot )) && { 
-    if xhost 1&> /dev/null; then 
+    if xhost > /dev/null 2>&1; then 
         echo "Waiting for system to restart..."
         xmessage "     * * * Warnning restarting the system in $(( restart_cancel_timeout / 60 )) minutes * * *     " -timeout $restart_cancel_timeout -button " Restart , Cancel " &> /dev/null
         err=$?

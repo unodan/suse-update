@@ -6,10 +6,10 @@ Log files will be over written unless the -k option is used. The -k option accep
 
 The -a option must be used with the -k option, it will archive files when value in -k option is met.  
 
-You can restart the system after updating by using -s option followed by the number of seconds to wait before rebooting, allowing the user time to cancel the restarting process if needed. <br>
+You can restart the system after updating by using the -s option followed by the number of seconds to wait before rebooting, allowing the user time to cancel the restarting process if needed. <br>
  <br>
 Example:
   suse-update.sh -v -s 300 -k 30 <br>
-  output maximum information, restart the system in 300 seconds and keep the latest 30 log files. <br>
+  output maximum information, restart the system 300 seconds after updates are finished and keep the latest 30 log files. <br>
    <br>
 Use CRON to run this script at scheduled times.<br>

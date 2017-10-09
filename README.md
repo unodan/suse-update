@@ -9,7 +9,7 @@ The -a option must be used with the -k option, it will archive files when value 
 You can restart the system after updating by using -s option followed by the number of seconds to wait before rebooting, allowing the use to cancel the restarting process if need be. <br>
  <br>
 Example:
-  suse-update.sh -vrk 30 <br>
-  output maximum info, reboot and keep the latest 30 log files. <br>
+  suse-update.sh -v -s 300 -k 30 <br>
+  output maximum information, restart the system in 300 seconds and keep the latest 30 log files. <br>
    <br>
 Use CRON to run this script at scheduled time.<br>

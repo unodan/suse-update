@@ -2,7 +2,7 @@
 This script will update openSUSE tumbleweed with the newest packages.  <br>
 Enabled repositories can be refreshed and updates done (automatically) none-interactively. <br>
 
-Log files will be over written unless the -k option is used. The -k option accepts an integer for the number of logs to keep, older files are deleted<br>
+Log files will be over written unless the -k option is used. The -k option accepts an integer for the number of logs to keep, older files are deleted.<br>
 
 The -a option must be used with the -k option, it will archive files when value in -k option is met.  
 

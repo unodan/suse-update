@@ -2,33 +2,25 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 2.06
+# Version: 2.07
 #  Author: Dan Huckson
 ###############################################################################
 
 function format_time {
-    s=$1
-    unset hours minutes seconds
-    time_hours=$(( s / 3600 )); 
-    time_minutes=$(( (s - time_hours * 3600) / 60 )); 
-    time_seconds=$(( s % 60 )); 
+    unset formated_time hours minutes seconds
+    
+    h=$(( $1 / 3600 )); 
+    m=$(( ($1 - h * 3600) / 60 )); 
+    s=$(( $1 % 60 )); 
 
-    (( $time_hours > 0 )) && {
-        (( $time_hours == 1 )) && hours=" 1 hour";
-        (( $time_hours > 1 )) && hours=" $time_hours hours"; 
-    }
-    (( $time_minutes > 0 )) && {
-        (( $time_minutes == 1 )) && minutes=" 1 minute";
-        (( $time_minutes > 1 )) && minutes=" $time_minutes minutes";
-    }
-    (( $time_seconds > 0 )) && {
-        (( $time_seconds == 1 )) && seconds=" 1 second";
-        (( $time_seconds > 1 )) && seconds=" $time_seconds seconds";
-    }
+    (( $h > 0 )) && (( $h > 1 )) && hours=" $h hours" || hours=" 1 hour"
+    (( $m > 0 )) && (( $m > 1 )) && minutes=" $m minutes" || minutes=" 1 minute"
+    (( $s > 0 )) && (( $s > 1 )) && seconds=" $s seconds" || seconds=" 1 second"
+    
+    formated_time=${hours}${minutes}${seconds}
 }
 
-date=`date`
-time=$(date +%s)
+start_time=$(date +%s)
 script=$(basename -- "$0")
 distribution="openSUSE tumbleweed"
 
@@ -101,26 +93,22 @@ Example: $script -v -s 300 -k 30
   esac
 done
 
-echo -e "Start: $date" | tee -a $log
-(( $auto_agree_with_licenses )) && { 
-    echo -e "\nApplying updates to ($distribution), accepting all licenses." | tee -a $log 
-}
+echo -e "Start: `date`" | tee -a $log
+(( $auto_agree_with_licenses )) && agree_with_licenses=", accepting all licenses."
+echo -e "\nApplying updates to ($distribution)$agree_with_licenses" | tee -a $log 
 
 (( $refresh )) && {
     (( $verbosity )) && {
         echo -e "\nRefreshing Repositories" | tee -a $log
         echo -e "----------------------------------------" | tee -a $log
-        zypper refresh | cut -d"'" -f2 | tee -a $log
-        err=${PIPESTATUS[0]}
+        zypper refresh | cut -d"'" -f2 | tee -a $log; err=${PIPESTATUS[0]}
         (( $err != 0 )) && { echo "An error ( $err ) occurred when refreshing repositories, exiting script." >&2; exit 50; } 
-        echo -e "----------------------------------------\n" | tee -a $log
+        echo -e "----------------------------------------" | tee -a $log
     } || { 
-        zypper refresh > /dev/null; 
-        err=$?
+        zypper refresh > /dev/null; err=$?
         (( $err != 0 )) && { echo "An error ( $err ) occurred when refreshing repositories, exiting script." >&2; exit 55; } 
-         
-        echo "Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories."
     }
+    echo -e "Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories.\n" | tee -a $log 
 }
 
 if (( $verbosity )); then 
@@ -135,30 +123,29 @@ fi
 
 (( $maximum_log_files )) && cd $logs && ls -tp | grep -v '/$' | tail -n +$((maximum_log_files+1)) | xargs -rd '\n' rm -- 
 
-format_time $[$(date +%s) - $time]
-echo -e "\nEnd: `date`\n\nFinished, total run time${hours}${minutes}${seconds}." | tee -a $log
+format_time $[$(date +%s) - $start_time]
+echo -e "\nEnd: `date`\n\nFinished, total run time$formated_time." | tee -a $log
 
 (( $reboot )) && { 
     (( $restart_cancel_timeout > 0 )) && { 
         format_time $restart_cancel_timeout
         
         if xhost > /dev/null 2>&1; then 
-            echo "System is going to restart in${hours}${minutes}${seconds}."
-            
-            xmessage "     * * * Warnning restarting the system in${hours}${minutes}${seconds} * * *     " -timeout $restart_cancel_timeout -button " Restart , Cancel " &> /dev/null
+            echo "System is going to restart in$formated_time."
+            xmessage "     * * * Warnning restarting the system in$formated_time * * *     " -timeout $restart_cancel_timeout -button " Restart , Cancel " &> /dev/null
             err=$?
             (( ! $err )) || (( $err == 101 )) && {
-                echo "System was restarted." | tee -a $log
+                echo -e "System was restarted. ($(date))\n" >> $log
                 init 6
-            } || echo "System restart was canceled!" | tee -a $log
+            } || echo -e "System restart was canceled. ($(date))\n" | tee -a $log
         else 
-            echo -e "System was restarted.\n" >> $log
-            echo "* * * Warnning restarting the system in${hours}${minutes}${seconds} * * *"
+            echo -e "System was restarted. ($(date)\n" >> $log
+            echo "* * * Warnning restarting the system in$formated_time * * *"
             sleep $restart_cancel_timeout
             init 6
         fi
     } || {
-        echo -e "System was restarted.\n" >> $log
+        echo -e "System was restarted. ($(date)\n" >> $log
         init 6
     }
 } 

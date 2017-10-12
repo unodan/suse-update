@@ -5,17 +5,15 @@
 # Version: 2.07
 #  Author: Dan Huckson
 ###############################################################################
-
 function format_time {
     unset formated_time hours minutes seconds
     
     h=$(( $1 / 3600 )); 
     m=$(( ($1 - h * 3600) / 60 )); 
     s=$(( $1 % 60 )); 
-
-    (( $h > 0 )) && (( $h > 1 )) && hours=" $h hours" || hours=" 1 hour"
-    (( $m > 0 )) && (( $m > 1 )) && minutes=" $m minutes" || minutes=" 1 minute"
-    (( $s > 0 )) && (( $s > 1 )) && seconds=" $s seconds" || seconds=" 1 second"
+    (( $h > 0 )) && { (( $h > 1 )) && hours=" $h hours" || hours=" 1 hour"; }
+    (( $m > 0 )) && { (( $m > 1 )) && minutes=" $m minutes" || minutes=" 1 minute"; }
+    (( $s > 0 )) && { (( $s > 1 )) && seconds=" $s seconds" || seconds=" 1 second"; }
     
     formated_time=${hours}${minutes}${seconds}
 }
@@ -149,5 +147,4 @@ echo -e "\nEnd: `date`\n\nFinished, total run time$formated_time." | tee -a $log
         init 6
     }
 } 
-
 exit 0

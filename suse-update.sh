@@ -2,20 +2,19 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 2.07
+# Version: 2.08
 #  Author: Dan Huckson
 ###############################################################################
-function format_time {
-    unset formated_time hours minutes seconds
+
+function get_time_string {
+    unset time_string hours minutes seconds
     
-    h=$(( $1 / 3600 )); 
-    m=$(( ($1 - h * 3600) / 60 )); 
-    s=$(( $1 % 60 )); 
+    h=$(( $1 / 3600 )); m=$(( ($1 - h * 3600) / 60 )); s=$(( $1 % 60 )); 
     (( $h > 0 )) && { (( $h > 1 )) && hours=" $h hours" || hours=" 1 hour"; }
     (( $m > 0 )) && { (( $m > 1 )) && minutes=" $m minutes" || minutes=" 1 minute"; }
     (( $s > 0 )) && { (( $s > 1 )) && seconds=" $s seconds" || seconds=" 1 second"; }
     
-    formated_time=${hours}${minutes}${seconds}
+    time_string=${hours}${minutes}${seconds}
 }
 
 start_time=$(date +%s)
@@ -69,9 +68,9 @@ while getopts ":alrvk:s:h" opt; do
     h)  echo -e "
 Usage: $script [OPTION]...\n
 Update $distribution with the latest packages.
-Enabled repositories can be refreshed and updates done (automatically) none-interactively.
-Log files will be over written unless the -k option is used. The -k option accepts an integer for the number of logs to keep, older log files are deleted.
-The -a option must be used with the -k option, it will archive files when the value in -k option is met.
+Enabled repositories can be refreshed and updates done (automatically) and none-interactively.
+Log files will be over written unless the -k option is used. The -k option accepts an integer for the number of log files to keep, older log files are deleted.
+The -a option must be used with the -k option, archiving happens when the number of log files equals the value supplied to the -k option. Once the log file is achieved it's deleted from the logs directory. 
 You can restart the system after updating by using the -s option followed by the number of seconds to wait before rebooting, allowing the user time to cancel the restarting process if needed.
         
  -a\t Archive the log files
@@ -100,50 +99,47 @@ echo -e "\nApplying updates to ($distribution)$agree_with_licenses" | tee -a $lo
         echo -e "\nRefreshing Repositories" | tee -a $log
         echo -e "----------------------------------------" | tee -a $log
         zypper refresh | cut -d"'" -f2 | tee -a $log; err=${PIPESTATUS[0]}
-        (( $err != 0 )) && { echo "An error ( $err ) occurred when refreshing repositories, exiting script." >&2; exit 50; } 
         echo -e "----------------------------------------" | tee -a $log
-    } || { 
-        zypper refresh > /dev/null; err=$?
-        (( $err != 0 )) && { echo "An error ( $err ) occurred when refreshing repositories, exiting script." >&2; exit 55; } 
-    }
+    } || zypper refresh > /dev/null; err=$?
+    
+    (( $err != 0 )) && { echo "An error ( $err ) occurred when refreshing repositories, exiting script." >&2; exit 50; } 
     echo -e "Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories.\n" | tee -a $log 
 }
 
 if (( $verbosity )); then 
-    zypper -v -n update $auto_agree_with_licenses | sed "/Unknown media type in type/d;s/^   //;/^Additional rpm output:/d" | sed ':a;N;$!ba;s/\n  / /g' | sed ':a;N;$!ba;s/\nRetrieving: /, /g' | tee -a $log
+    zypper -v -n update $auto_agree_with_licenses | sed '/Unknown media type in type/d; s/^   //; /^Additional rpm output:/d; :a;N;$!ba;s/\n  / /g' | sed ':a;N;$!ba;s/\nRetrieving: /, /g' | tee -a $log
     err=${PIPESTATUS[0]}
-    (( $err != 0 )) && { echo "An error ( $err ) occurred with ( $script ) exiting script." >&2; exit 60; } 
 else
     zypper -v -n update $auto_agree_with_licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log
     err=${PIPESTATUS[0]}
-    (( $err != 0 )) && { echo "An error ( $err ) occurred with ( $script ) exiting script." >&2; exit 65; } 
 fi
+(( $err != 0 )) && { echo "An error ( $err ) occurred with ( $script ) exiting script." >&2; exit 60; } 
 
 (( $maximum_log_files )) && cd $logs && ls -tp | grep -v '/$' | tail -n +$((maximum_log_files+1)) | xargs -rd '\n' rm -- 
 
-format_time $[$(date +%s) - $start_time]
-echo -e "\nEnd: `date`\n\nFinished, total run time$formated_time." | tee -a $log
+get_time_string $[$(date +%s) - $start_time]
+echo -e "\nEnd: `date`\n\nFinished, total run time$time_string." | tee -a $log
 
 (( $reboot )) && { 
     (( $restart_cancel_timeout > 0 )) && { 
-        format_time $restart_cancel_timeout
+        get_time_string $restart_cancel_timeout
         
         if xhost > /dev/null 2>&1; then 
-            echo "System is going to restart in$formated_time."
-            xmessage "     * * * Warnning restarting the system in$formated_time * * *     " -timeout $restart_cancel_timeout -button " Restart , Cancel " &> /dev/null
+            echo "System is going to restart in$time_string."
+            xmessage "     * * * Warnning restarting the system in$time_string * * *     " -timeout $restart_cancel_timeout -button " Restart , Cancel " &> /dev/null
             err=$?
-            (( ! $err )) || (( $err == 101 )) && {
-                echo -e "System was restarted. ($(date))\n" >> $log
+            (( $err == 0 )) || (( $err == 101 )) && {
+                echo -e "1: System was restarted. ($(date))\n" >> $log
                 init 6
             } || echo -e "System restart was canceled. ($(date))\n" | tee -a $log
         else 
-            echo -e "System was restarted. ($(date)\n" >> $log
-            echo "* * * Warnning restarting the system in$formated_time * * *"
+            echo -e "2: System was restarted. ($(date)\n" >> $log
+            echo "* * * Warnning restarting the system in$time_string * * *"
             sleep $restart_cancel_timeout
             init 6
         fi
     } || {
-        echo -e "System was restarted. ($(date)\n" >> $log
+        echo -e "3: System was restarted. ($(date)\n" >> $log
         init 6
     }
 } 

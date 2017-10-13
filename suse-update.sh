@@ -24,17 +24,15 @@ distribution="openSUSE tumbleweed"
 name=`echo $script | cut -f1 -d.`
 logs=/var/log/$name
 log=$logs/$name.log
-
 [ ! -d "$logs" ] && mkdir $logs; 
 
 while getopts ":alrvk:s:h" opt; do
   case $opt in    
     a)  number_of_log_files=`ls $logs/$name*.log 2> /dev/null | wc -l`
     
-        (( $maximum_log_files != 0 )) && (( $number_of_log_files >= $maximum_log_files )) && {
+        (( $maximum_log_files > 0 )) && (( $number_of_log_files >= $maximum_log_files )) && {
             [ ! -d $logs/archive ] && mkdir -p $logs/archive; 
-            cd $logs
-            ls *.log | xargs zip -q "archive/$name-logs-`date +%Y%m%d-%H%M%S`.zip" && rm *.log
+            cd $logs && ls *.log | xargs zip -q "archive/$name-logs-`date +%Y%m%d-%H%M%S`.zip" && rm *.log
         }
         ;;
     l)  auto_agree_with_licenses="--auto-agree-with-licenses"
@@ -51,19 +49,18 @@ while getopts ":alrvk:s:h" opt; do
         }
         log="$logs/$name-`date +%Y%m%d-%H%M%S`.log"
         ;;
-    s)  restart_cancel_timeout=$OPTARG
-        reboot=1
+    s)  restart_timeout=$OPTARG
         
-        ! [[ $restart_cancel_timeout =~ ^[0-9]+$ ]] && {
+        ! [[ $restart_timeout =~ ^[0-9]+$ ]] && {
             echo -e "ERROR: Please enter a positive interger for the number of seconds to wait befrore restarting the system.\nUse $script -h for more information." >&2
-            exit 15
+            exit 20
         }
         ;;
     :)  echo -e "ERROR: Option [ -$OPTARG ] requires an argument.\nUse $script -h for more information." >&2
-        exit 40
+        exit 30
         ;;
    \?)  echo -e "ERROR: Invalid option [ -$OPTARG ]\nUse $script -h for more information." >&2
-        exit 30
+        exit 40
         ;;
     h)  echo -e "
 Usage: $script [OPTION]...\n
@@ -85,7 +82,7 @@ You can restart the system after updating by using the -s option followed by the
  
 Example: $script -v -s 300 -k 30 
   output maximum information, restart the system 300 seconds after updates are finished and keep the latest 30 log files."
-        exit 20
+        exit 50
         ;;
   esac
 done
@@ -102,7 +99,7 @@ echo -e "\nApplying updates to ($distribution)$agree_with_licenses" | tee -a $lo
         echo -e "----------------------------------------" | tee -a $log
     } || zypper refresh > /dev/null; err=$?
     
-    (( $err != 0 )) && { echo "An error ( $err ) occurred when refreshing repositories, exiting script." >&2; exit 50; } 
+    (( $err != 0 )) && { echo "An error ( $err ) occurred when refreshing repositories, exiting script." >&2; exit 60; } 
     echo -e "Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories.\n" | tee -a $log 
 }
 
@@ -113,34 +110,33 @@ else
     zypper -v -n update $auto_agree_with_licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log
     err=${PIPESTATUS[0]}
 fi
-(( $err != 0 )) && { echo "An error ( $err ) occurred with ( $script ) exiting script." >&2; exit 60; } 
+(( $err != 0 )) && { echo "An error ( $err ) occurred with ( $script ) exiting script." >&2; exit 70; } 
 
 (( $maximum_log_files )) && cd $logs && ls -tp | grep -v '/$' | tail -n +$((maximum_log_files+1)) | xargs -rd '\n' rm -- 
 
 get_time_string $[$(date +%s) - $start_time]
 echo -e "\nEnd: `date`\n\nFinished, total run time$time_string." | tee -a $log
 
-(( $reboot )) && { 
-    (( $restart_cancel_timeout > 0 )) && { 
-        get_time_string $restart_cancel_timeout
-        
-        if xhost > /dev/null 2>&1; then 
-            echo "System is going to restart in$time_string."
-            xmessage "     * * * Warnning restarting the system in$time_string * * *     " -timeout $restart_cancel_timeout -button " Restart , Cancel " &> /dev/null
-            err=$?
-            (( $err == 0 )) || (( $err == 101 )) && {
-                echo -e "1: System was restarted. ($(date))\n" >> $log
-                init 6
-            } || echo -e "System restart was canceled. ($(date))\n" | tee -a $log
-        else 
-            echo -e "2: System was restarted. ($(date)\n" >> $log
-            echo "* * * Warnning restarting the system in$time_string * * *"
-            sleep $restart_cancel_timeout
+(( $restart_timeout > 0 )) && { 
+    get_time_string $restart_timeout
+    
+    if xhost > /dev/null 2>&1; then 
+        echo "System is going to restart in$time_string."
+        xmessage "     * * * Warnning restarting the system in$time_string * * *     " -timeout $restart_timeout -button " Restart , Cancel " &> /dev/null
+        err=$?
+        (( $err == 0 )) || (( $err == 101 )) && {
+            echo -e "1: System was restarted. ($(date))\n" >> $log
             init 6
-        fi
-    } || {
-        echo -e "3: System was restarted. ($(date)\n" >> $log
+        } || echo -e "System restart was canceled. ($(date))\n" | tee -a $log
+    else 
+        echo -e "2: System was restarted. ($(date)\n" >> $log
+        echo "* * * Warnning restarting the system in$time_string * * *"
+        sleep $restart_timeout
         init 6
-    }
-} 
+    fi
+} || {
+    if xhost > /dev/null 2>&1; then gui=3; else gui=4; fi
+    echo -e "$gui: System was restarted. ($(date)\n" >> $log
+    init 6
+}
 exit 0

@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 2.08
+# Version: 2.09
 #  Author: Dan Huckson
 ###############################################################################
 
@@ -24,13 +24,15 @@ distribution="openSUSE tumbleweed"
 name=`echo $script | cut -f1 -d.`
 logs=/var/log/$name
 log=$logs/$name.log
+
+if [ -f $log ]; then rm $log; fi
 [ ! -d "$logs" ] && mkdir $logs; 
 
 while getopts ":alrvk:s:h" opt; do
   case $opt in    
     a)  number_of_log_files=`ls $logs/$name*.log 2> /dev/null | wc -l`
     
-        (( $maximum_log_files > 0 )) && (( $number_of_log_files >= $maximum_log_files )) && {
+        (( $maximum_log_files )) && (( $maximum_log_files > 0 )) && (( $number_of_log_files >= $maximum_log_files )) && {
             [ ! -d $logs/archive ] && mkdir -p $logs/archive; 
             cd $logs && ls *.log | xargs zip -q "archive/$name-logs-`date +%Y%m%d-%H%M%S`.zip" && rm *.log
         }
@@ -64,8 +66,8 @@ while getopts ":alrvk:s:h" opt; do
         ;;
     h)  echo -e "
 Usage: $script [OPTION]...\n
-Update $distribution with the latest packages.
-Enabled repositories can be refreshed and updates done (automatically) and none-interactively.
+This script will update $distribution with the latest packages from the enabled repositories.
+Enabled repositories can be refreshed and updates done none-interactively (automatically).
 Log files will be over written unless the -k option is used. The -k option accepts an integer for the number of log files to keep, older log files are deleted.
 The -a option must be used with the -k option, archiving happens when the number of log files equals the value supplied to the -k option. Once the log file is achieved it's deleted from the logs directory. 
 You can restart the system after updating by using the -s option followed by the number of seconds to wait before rebooting, allowing the user time to cancel the restarting process if needed.
@@ -88,14 +90,14 @@ Example: $script -v -s 300 -k 30
 done
 
 echo -e "Start: `date`" | tee -a $log
-(( $auto_agree_with_licenses )) && agree_with_licenses=", accepting all licenses."
+(( $auto_agree_with_licenses )) && agree_with_licenses=", accepting licenses."
 echo -e "\nApplying updates to ($distribution)$agree_with_licenses" | tee -a $log 
 
 (( $refresh )) && {
     (( $verbosity )) && {
         echo -e "\nRefreshing Repositories" | tee -a $log
         echo -e "----------------------------------------" | tee -a $log
-        zypper refresh | cut -d"'" -f2 | tee -a $log; err=${PIPESTATUS[0]}
+        zypper refresh  | cut -d"'" -f2 | tee -a $log; err=${PIPESTATUS[0]}
         echo -e "----------------------------------------" | tee -a $log
     } || zypper refresh > /dev/null; err=$?
     
@@ -117,7 +119,7 @@ fi
 get_time_string $[$(date +%s) - $start_time]
 echo -e "\nEnd: `date`\n\nFinished, total run time$time_string." | tee -a $log
 
-(( $restart_timeout > 0 )) && { 
+(( $restart_timeout )) && { 
     get_time_string $restart_timeout
     
     if xhost > /dev/null 2>&1; then 
@@ -135,8 +137,11 @@ echo -e "\nEnd: `date`\n\nFinished, total run time$time_string." | tee -a $log
         init 6
     fi
 } || {
-    if xhost > /dev/null 2>&1; then gui=3; else gui=4; fi
-    echo -e "$gui: System was restarted. ($(date)\n" >> $log
-    init 6
+    if [[ $restart_timeout == 0 ]]; then
+        if xhost > /dev/null 2>&1; then gui=3; else gui=4; fi
+        echo -e "$gui: System was restarted. ($(date)\n" >> $log
+        init 6
+    fi
 }
-exit 0
+
+true

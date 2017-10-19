@@ -2,7 +2,7 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE tumbleweed with the latest packages.
-# Version: 2.09
+# Version: 2.10
 #  Author: Dan Huckson
 ###############################################################################
 
@@ -66,8 +66,7 @@ while getopts ":alrvk:s:h" opt; do
         ;;
     h)  echo -e "
 Usage: $script [OPTION]...\n
-This script will update $distribution with the latest packages from the enabled repositories.
-Enabled repositories can be refreshed and updates done none-interactively (automatically).
+This script will update $distribution with the latest packages from the enabled repositories. Enabled repositories can be refreshed and updates done none-interactively (automatically).
 Log files will be over written unless the -k option is used. The -k option accepts an integer for the number of log files to keep, older log files are deleted.
 The -a option must be used with the -k option, archiving happens when the number of log files equals the value supplied to the -k option. Once the log file is achieved it's deleted from the logs directory. 
 You can restart the system after updating by using the -s option followed by the number of seconds to wait before rebooting, allowing the user time to cancel the restarting process if needed.
@@ -97,7 +96,7 @@ echo -e "\nApplying updates to ($distribution)$agree_with_licenses" | tee -a $lo
     (( $verbosity )) && {
         echo -e "\nRefreshing Repositories" | tee -a $log
         echo -e "----------------------------------------" | tee -a $log
-        zypper refresh  | cut -d"'" -f2 | tee -a $log; err=${PIPESTATUS[0]}
+        zypper refresh | cut -d"'" -f2 | tee -a $log; err=${PIPESTATUS[0]}
         echo -e "----------------------------------------" | tee -a $log
     } || zypper refresh > /dev/null; err=$?
     
@@ -112,34 +111,37 @@ else
     zypper -v -n update $auto_agree_with_licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log
     err=${PIPESTATUS[0]}
 fi
-(( $err != 0 )) && { echo "An error ( $err ) occurred with ( $script ) exiting script." >&2; exit 70; } 
 
+(( $err != 0 )) && { echo "An error ( $err ) occurred with ( $script ) exiting script." >&2; exit 70; } 
 (( $maximum_log_files )) && cd $logs && ls -tp | grep -v '/$' | tail -n +$((maximum_log_files+1)) | xargs -rd '\n' rm -- 
 
+sed -i 's/   dracut:/\ndracut:/g; s/^CommitResult/\n\nCommitResult/' $log
 get_time_string $[$(date +%s) - $start_time]
-echo -e "\nEnd: `date`\n\nFinished, total run time$time_string." | tee -a $log
+echo -e "\nEnd: `date`\n\nTotal run time$time_string." | tee -a $log
 
 (( $restart_timeout )) && { 
     get_time_string $restart_timeout
     
+    wall -n "* * * Warnning restarting the system in$time_string * * *"
     if xhost > /dev/null 2>&1; then 
-        echo "System is going to restart in$time_string."
         xmessage "     * * * Warnning restarting the system in$time_string * * *     " -timeout $restart_timeout -button " Restart , Cancel " &> /dev/null
         err=$?
         (( $err == 0 )) || (( $err == 101 )) && {
             echo -e "1: System was restarted. ($(date))\n" >> $log
             init 6
-        } || echo -e "System restart was canceled. ($(date))\n" | tee -a $log
+        }
+        echo | tee -a $log
+        zypper ps -s | tee -a $log
+        echo -e "\n\nSystem restart was canceled. ($(date))\n" | tee -a $log
     else 
-        echo -e "2: System was restarted. ($(date)\n" >> $log
-        echo "* * * Warnning restarting the system in$time_string * * *"
         sleep $restart_timeout
+        echo -e "2: System was restarted. ($(date))\n" >> $log
         init 6
     fi
 } || {
     if [[ $restart_timeout == 0 ]]; then
         if xhost > /dev/null 2>&1; then gui=3; else gui=4; fi
-        echo -e "$gui: System was restarted. ($(date)\n" >> $log
+        echo -e "$gui: System was restarted. ($(date))\n" >> $log
         init 6
     fi
 }

@@ -2,10 +2,20 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE Linux with the latest packages.
-# Version: 2.12
+# Version: 2.13
 #  Author: Dan Huckson, https://github.com/unodan
 ###############################################################################
-version=2.12
+trap cancel_restart INT
+
+true=1
+version=2.13
+
+function cancel_restart { 
+    get_time_string $[$(date +%s) - $start_time]
+    zypper ps -s | sed '/No processes using deleted files found/d' | tee -a $log_file
+    echo -e "\nRestart Canceled: `date`\n\nTotal run time$time_string.\n" | tee -a $log_file
+    exit 5
+}
 
 function get_time_string {
     unset time_string hours minutes seconds
@@ -38,9 +48,9 @@ while getopts ":alrvk:s:h" opt; do
         ;;
     l)  auto_agree_with_licenses="--auto-agree-with-licenses"
         ;;
-    r)  refresh=1
+    r)  refresh=true
         ;;
-    v)  verbose=1 
+    v)  verbose=true 
         ;;
     k)  maximum_log_files=$OPTARG    
     
@@ -103,46 +113,29 @@ echo -e "\nApplying updates to ($distribution) Version:${version_id}${agree_with
     echo -e "Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories.\n" | tee -a $log_file 
 }
 
-if (( $verbose )); then 
+(( $verbose )) && {
     zypper -v -n update $auto_agree_with_licenses | sed '/Unknown media type in type/d; s/^   //; s/^CommitResult/\n\nCommitResult/; /^Additional rpm output:/d; :a;N;$!ba;s/\n  / /g' | sed ':a;N;$!ba;s/\nRetrieving: /, /g' | tee -a $log_file
-    err=${PIPESTATUS[0]}
-else
-    zypper -v -n update $auto_agree_with_licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //' | tee -a $log_file
-    err=${PIPESTATUS[0]}
-fi
-
+} || { zypper -v -n update $auto_agree_with_licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //; /package updates will NOT be installed:/d' | tee -a $log_file; }
+    
+err=${PIPESTATUS[0]}
 (( $err != 0 )) && { echo "An error ( $err ) occurred with ( $script ) exiting script." >&2; exit 70; } 
 (( $maximum_log_files )) && cd $log_dir && ls -tp | grep -v '/$' | tail -n +$((maximum_log_files+1)) | xargs -rd '\n' rm -- 
 
-echo -e "\nStarted:  $date\n\nFinished: `date`\n" | tee -a $log_file
-get_time_string $[$(date +%s) - $start_time]
-echo -e "Total run time$time_string." | tee -a $log_file
 sed -i 's/   dracut:/\ndracut:/g; s/^CommitResult/\nCommitResult/; /^Checking for running processes/d; /^There are some running programs/d' $log_file
+echo -e "\nStarted:  $date\n\nFinished: `date`" | tee -a $log_file
 
 (( $restart_timeout )) && { 
     get_time_string $restart_timeout
+    echo; wall -n "* * * Warnning restarting the system in$time_string * * *"
     
-    wall -n "* * * Warnning restarting the system in$time_string * * *"
     if xhost > /dev/null 2>&1; then 
         xmessage "     * * * Warnning restarting the system in$time_string * * *     " -timeout $restart_timeout -button " Restart , Cancel " &> /dev/null
-        err=$?
-        (( $err == 0 )) || (( $err == 101 )) && {
-            echo -e "Restarted: `date`\n" >> $log_file
-            init 6
-        }
-        zypper ps -s | sed '/No processes using deleted files found/d' | tee -a $log_file
-        echo -e "\nRestart Canceled: `date`\n" >> $log_file
-    else 
-        sleep $restart_timeout
-        echo -e "Restarted: `date`\n" >> $log_file
-        init 6
-    fi
-} || {
-    if [[ $restart_timeout == 0 ]]; then
-        if xhost > /dev/null 2>&1; then gui=3; else gui=4; fi
-        echo -e "Restarted: `date`\n" >> $log_file
-        init 6
-    fi
-}
+        err=$?; (( $err == 0 )) || (( $err == 101 )) && restart_system=true
+    else sleep $restart_timeout; fi
+    
+} || { if [[ $restart_timeout == 0 ]]; then restart_system=true; fi }
 
-true
+get_time_string $[$(date +%s) - $start_time]
+(( $restart_system )) && { echo -e "\n\nTotal run time$time_string.\n\nRestarted: `date`\n" >> $log_file; init 6; }
+
+cancel_restart; true

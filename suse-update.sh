@@ -4,18 +4,18 @@
 # Purpose: Update openSUSE Linux with the latest packages.
 #  Author: Dan Huckson, https://github.com/unodan
 ###############################################################################
-version=2.14
+version=2.15
 trap cancel_restart INT
 
 function speak {
-    echo -e $1 | espeak -p 0 -s 140 > /dev/null 2>&1
+    echo -e $1 | espeak -p 50 -s 160 > /dev/null 2>&1
 }
 
 function cancel_restart { 
-    (( $warning )) && speak "The scheduled system restart has been canceled."
+    (( $audible_warning )) && speak "The scheduled system restart has been canceled."
     get_time_string $[$(date +%s) - $start_time]
     zypper ps -s | sed '/No processes using deleted files found/d' | tee -a $log_file
-    echo -e "\nRestart Canceled: `date`\n\nTotal run time$time_string.\n" | tee -a $log_file
+    echo -e "Restart Canceled: `date`\n\nTotal run time$time_string.\n" | tee -a $log_file
     exit 5
 }
 
@@ -37,6 +37,7 @@ distribution=`cat /etc/*-release | grep ^NAME | cut -d'"' -f2`
 version_id=`cat /etc/*-release | grep ^VERSION_ID | cut -d'"' -f2`
 log_dir=/var/log/$script_basename && [ ! -d "$log_dir" ] && mkdir $log_dir
 log_file=$log_dir/$script_basename.log
+if xhost > /dev/null 2>&1; then gui_mode=$true; fi
 
 while getopts ":alrvwk:s:h" opt; do
   case $opt in    
@@ -48,9 +49,9 @@ while getopts ":alrvwk:s:h" opt; do
         }
         ;;
     l)  auto_agree_with_licenses="--auto-agree-with-licenses";;
-    r)  refresh=true;;
-    v)  verbose=true;;
-    w)  warning=true;;
+    r)  refresh=$true;;
+    v)  verbose=$true;;
+    w)  audible_warning=$true;;
     k)  maximum_log_files=$OPTARG    
     
         ! [[ $maximum_log_files =~ ^[0-9]+$ ]] && {
@@ -80,7 +81,7 @@ When the -w option is supplied, users are sent an audio beep and message letting
  -l\t Auto agree with licenses
  -r\t Refresh all enabled repostiories
  -v\t Verbosity (show maximum information)
- -w\t Enable audio warnning
+ -w\t Enable audio warnings
  -k\t Maximum number of log files
    \t  (this option must be supplied with the maximum number of log files to keep)
  -s\t Restart system after updates
@@ -96,11 +97,11 @@ done
 
 echo -e "$script, Version:$version, $date" | tee $log_file
 (( $auto_agree_with_licenses )) && agree_with_licenses=", accepting all licenses.\n"
-echo -e "\nApplying updates to ($distribution) Version:${version_id}${agree_with_licenses}" | tee -a $log_file 
+echo -e "\nApplying updates to ($distribution) Version:${version_id}${agree_with_licenses}\n" | tee -a $log_file 
 
 (( $refresh )) && {
     (( $verbose )) && {
-        echo -e "\nRefreshing Repositories" | tee -a $log_file
+        echo -e "Refreshing Repositories" | tee -a $log_file
         echo -e "----------------------------------------" | tee -a $log_file
         zypper refresh | cut -d"'" -f2 | tee -a $log_file; err=${PIPESTATUS[0]}
         echo -e "----------------------------------------" | tee -a $log_file
@@ -119,41 +120,39 @@ err=${PIPESTATUS[0]}
 (( $maximum_log_files )) && cd $log_dir && ls -tp | grep -v '/$' | tail -n +$((maximum_log_files+1)) | xargs -rd '\n' rm -- 
 
 sed -i 's/   dracut:/\ndracut:/g; s/^CommitResult/\nCommitResult/; /^Checking for running processes/d; /^There are some running programs/d' $log_file
-echo -e "\nStarted:  $date\n\nFinished: `date`" | tee -a $log_file
-
+echo -e "\nStarted:  $date\n\nFinished: `date`\n" | tee -a $log_file
 
 (( $restart_timeout )) && { 
     get_time_string $restart_timeout 
-    warning_message="Warnning restarting the system in$time_string"
+    warning_message="Attention: Restarting system in$time_string"
     
     tty > /dev/null
     (( $? == 1 )) && { 
         pid=`ps -A | grep -m 1 $script | sed 's/^ *//' | cut -d" " -f1`   
         message+="$warning_message, you can cancel restarting from the console by entering, \"sudo kill $pid\""
-    } || message="$warning_message, you can cancel the scheduled restart by entering [ctrl] c in the console."
+    } || { 
+        message="$warning_message, you can cancel the scheduled restart by entering [ctrl] c at the console"
+        (( $gui_mode )) && message+=" or by clicking the cancel button in the x-windows dialog box." || message+="."
+    }
     
-    (( $warning )) && { 
+    (( $audible_warning )) && { 
         speaker-test -p 1 -t sine -f 400 -l 1 > /dev/null 2>&1
         echo -e "$message" | wall -n; speak "$message"
     } || echo -e "$message" | wall -n 
     
-    if xhost > /dev/null 2>&1; then 
-        echo -e "\n $warning_message \n" | xmessage  -timeout $restart_timeout -button " Restart , Cancel " -file -
-        err=$?; (( $err == 0 )) || (( $err == 101 )) && restart_system=true
-    else
-        sleep $restart_timeout; 
-        restart_system=true
-    fi
-} || { (( $restart_timeout == 0 )) && restart_system=true; }
+    (( $gui_mode )) && {
+        echo -e "\n   $warning_message.   \n" | xmessage  -timeout $restart_timeout -button " Restart , Cancel " -file -
+        err=$?; (( $err == 0 )) || (( $err == 101 )) && restart_system=$true || cancel_restart
+    } || {
+        sleep $restart_timeout
+        restart_system=$true
+    }
+} || if [[ $restart_timeout == 0 ]]; then restart_system=$true; fi
+
+get_time_string $[$(date +%s) - $start_time]
 
 (( $restart_system )) && { 
-    get_time_string $[$(date +%s) - $start_time]
-    (( $warning )) && {
-        speak "This system is going to restart now." 
-        sleep 1
-    }
-    echo -e "\nRestarted: `date`\n\nTotal run time$time_string.\n" >> $log_file
+    (( $audible_warning )) && speak "This system is going to restart now." 
+    echo -e "Restarted: `date`\n\nTotal run time$time_string.\n" | tee -a $log_file
     init 6
-}
-
-cancel_restart; true
+} || echo -e "Total run time$time_string.\n" | tee -a $log_file

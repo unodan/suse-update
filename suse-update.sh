@@ -2,15 +2,17 @@
 ###############################################################################
 #  Script: suse-update.sh
 # Purpose: Update openSUSE Linux with the latest packages.
-# Version: 2.13
 #  Author: Dan Huckson, https://github.com/unodan
 ###############################################################################
+version=2.14
 trap cancel_restart INT
 
-true=1
-version=2.13
+function speak {
+    echo -e $1 | espeak -p 0 -s 140 > /dev/null 2>&1
+}
 
 function cancel_restart { 
+    (( $warning )) && speak "The scheduled system restart has been canceled."
     get_time_string $[$(date +%s) - $start_time]
     zypper ps -s | sed '/No processes using deleted files found/d' | tee -a $log_file
     echo -e "\nRestart Canceled: `date`\n\nTotal run time$time_string.\n" | tee -a $log_file
@@ -19,15 +21,14 @@ function cancel_restart {
 
 function get_time_string {
     unset time_string hours minutes seconds
-    
     h=$(( $1 / 3600 )); m=$(( ($1 - h * 3600) / 60 )); s=$(( $1 % 60 )); 
     (( $h > 0 )) && { (( $h > 1 )) && hours=" $h hours" || hours=" 1 hour"; }
     (( $m > 0 )) && { (( $m > 1 )) && minutes=" $m minutes" || minutes=" 1 minute"; }
     (( $s > 0 )) && { (( $s > 1 )) && seconds=" $s seconds" || seconds=" 1 second"; }
-    
     time_string=${hours}${minutes}${seconds}
 }
 
+true=1
 date=`date`
 start_time=$(date +%s)
 script=$(basename -- "$0")
@@ -37,7 +38,7 @@ version_id=`cat /etc/*-release | grep ^VERSION_ID | cut -d'"' -f2`
 log_dir=/var/log/$script_basename && [ ! -d "$log_dir" ] && mkdir $log_dir
 log_file=$log_dir/$script_basename.log
 
-while getopts ":alrvk:s:h" opt; do
+while getopts ":alrvwk:s:h" opt; do
   case $opt in    
     a)  number_of_log_files=`ls $log_dir/$script_basename*.log 2> /dev/null | wc -l`
     
@@ -46,12 +47,10 @@ while getopts ":alrvk:s:h" opt; do
             cd $log_dir && ls *.log | xargs zip -q "archive/$script_basename-logs-`date +%Y%m%d-%H%M%S`.zip" && rm *.log
         }
         ;;
-    l)  auto_agree_with_licenses="--auto-agree-with-licenses"
-        ;;
-    r)  refresh=true
-        ;;
-    v)  verbose=true 
-        ;;
+    l)  auto_agree_with_licenses="--auto-agree-with-licenses";;
+    r)  refresh=true;;
+    v)  verbose=true;;
+    w)  warning=true;;
     k)  maximum_log_files=$OPTARG    
     
         ! [[ $maximum_log_files =~ ^[0-9]+$ ]] && {
@@ -67,23 +66,21 @@ while getopts ":alrvk:s:h" opt; do
             exit 20
         }
         ;;
-    :)  echo -e "ERROR: Option [ -$OPTARG ] requires an argument.\nUse $script -h for more information." >&2
-        exit 30
-        ;;
-   \?)  echo -e "ERROR: Invalid option [ -$OPTARG ]\nUse $script -h for more information." >&2
-        exit 40
-        ;;
+    :)  echo -e "ERROR: Option [ -$OPTARG ] requires an argument.\nUse $script -h for more information." >&2; exit 30;;
+   \?)  echo -e "ERROR: Invalid option [ -$OPTARG ]\nUse $script -h for more information." >&2; exit 40;;
     h)  echo -e "
 Usage: $script [OPTION]...\n
-This script will update $distribution with the latest packages from all the enabled repositories. Enabled repositories can be refreshed and updates done none-interactively (automatically).
-Log files will be over written unless the -k option is used. The -k option accepts a positive integer for the number of log files to keep, older log files are deleted.
+This script will update $distribution with the latest packages from all the enabled repositories. Enabled repositories can be refreshed and updates done none-interactively (automatically). 
+Log files will be over written unless the -k option is used. The -k option accepts a positive integer for the number of log files to keep, older log files are deleted. 
 The -a option must be used with the -k option, archiving happens when the number of log files equals the value supplied to the -k option. Once a log file is achieved it's deleted from the logs directory. 
-You can restart the system after updating by using the -s option followed by the number of seconds to wait before rebooting, allowing the user time to save their work or cancel the restarting process if needed.
-        
+After updating is done the system can be restart by using the -s option followed by the number of seconds to wait before restarting, allowing the user time to save their work or cancel the restarting process if needed.
+When the -w option is supplied, users are sent an audio beep and message letting them know that the system is going to be restarted. 
+
  -a\t Archive log files
  -l\t Auto agree with licenses
  -r\t Refresh all enabled repostiories
  -v\t Verbosity (show maximum information)
+ -w\t Enable audio warnning
  -k\t Maximum number of log files
    \t  (this option must be supplied with the maximum number of log files to keep)
  -s\t Restart system after updates
@@ -124,18 +121,39 @@ err=${PIPESTATUS[0]}
 sed -i 's/   dracut:/\ndracut:/g; s/^CommitResult/\nCommitResult/; /^Checking for running processes/d; /^There are some running programs/d' $log_file
 echo -e "\nStarted:  $date\n\nFinished: `date`" | tee -a $log_file
 
+
 (( $restart_timeout )) && { 
-    get_time_string $restart_timeout
-    echo; wall -n "* * * Warnning restarting the system in$time_string * * *"
+    get_time_string $restart_timeout 
+    warning_message="Warnning restarting the system in$time_string"
+    
+    tty > /dev/null
+    (( $? == 1 )) && { 
+        pid=`ps -A | grep -m 1 $script | sed 's/^ *//' | cut -d" " -f1`   
+        message+="$warning_message, you can cancel restarting from the console by entering, \"sudo kill $pid\""
+    } || message="$warning_message, you can cancel the scheduled restart by entering [ctrl] c in the console."
+    
+    (( $warning )) && { 
+        speaker-test -p 1 -t sine -f 400 -l 1 > /dev/null 2>&1
+        echo -e "$message" | wall -n; speak "$message"
+    } || echo -e "$message" | wall -n 
     
     if xhost > /dev/null 2>&1; then 
-        xmessage "     * * * Warnning restarting the system in$time_string * * *     " -timeout $restart_timeout -button " Restart , Cancel " &> /dev/null
+        echo -e "\n $warning_message \n" | xmessage  -timeout $restart_timeout -button " Restart , Cancel " -file -
         err=$?; (( $err == 0 )) || (( $err == 101 )) && restart_system=true
-    else sleep $restart_timeout; fi
-    
-} || { if [[ $restart_timeout == 0 ]]; then restart_system=true; fi }
+    else
+        sleep $restart_timeout; 
+        restart_system=true
+    fi
+} || { (( $restart_timeout == 0 )) && restart_system=true; }
 
-get_time_string $[$(date +%s) - $start_time]
-(( $restart_system )) && { echo -e "\n\nTotal run time$time_string.\n\nRestarted: `date`\n" >> $log_file; init 6; }
+(( $restart_system )) && { 
+    get_time_string $[$(date +%s) - $start_time]
+    (( $warning )) && {
+        speak "This system is going to restart now." 
+        sleep 1
+    }
+    echo -e "\nRestarted: `date`\n\nTotal run time$time_string.\n" >> $log_file
+    init 6
+}
 
 cancel_restart; true

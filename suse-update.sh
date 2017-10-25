@@ -4,7 +4,7 @@
 # Purpose: Update openSUSE Linux with the latest packages.
 #  Author: Dan Huckson, https://github.com/unodan
 ###############################################################################
-version=2.15
+version=2.16
 trap cancel_restart INT
 
 function speak {
@@ -16,7 +16,7 @@ function cancel_restart {
     get_time_string $[$(date +%s) - $start_time]
     zypper ps -s | sed '/No processes using deleted files found/d' | tee -a $log_file
     echo -e "Restart Canceled: `date`\n\nTotal run time$time_string.\n" | tee -a $log_file
-    exit 5
+    exit 100
 }
 
 function get_time_string {
@@ -51,7 +51,14 @@ while getopts ":alrvwk:s:h" opt; do
     l)  auto_agree_with_licenses="--auto-agree-with-licenses";;
     r)  refresh=$true;;
     v)  verbose=$true;;
-    w)  audible_warning=$true;;
+    w)  audible_warning=$true
+        rpm -q espeak
+        espeak_installed=$?
+        (( $espeak_installed )) && {
+            echo -e "The -w option requires that the espeak package be installed.\nPlease install the package espeak ( zypper install espeak ) and run the script again."
+            exit 5
+        } 
+        ;;
     k)  maximum_log_files=$OPTARG    
     
         ! [[ $maximum_log_files =~ ^[0-9]+$ ]] && {
@@ -75,13 +82,14 @@ This script will update $distribution with the latest packages from all the enab
 Log files will be over written unless the -k option is used. The -k option accepts a positive integer for the number of log files to keep, older log files are deleted. 
 The -a option must be used with the -k option, archiving happens when the number of log files equals the value supplied to the -k option. Once a log file is achieved it's deleted from the logs directory. 
 After updating is done the system can be restart by using the -s option followed by the number of seconds to wait before restarting, allowing the user time to save their work or cancel the restarting process if needed.
-When the -w option is supplied, users are sent an audio beep and message letting them know that the system is going to be restarted. 
+When the -w option is supplied, users are sent an audio beep and a spoken message letting them know that the system is going to be restarted. 
 
  -a\t Archive log files
  -l\t Auto agree with licenses
  -r\t Refresh all enabled repostiories
  -v\t Verbosity (show maximum information)
  -w\t Enable audio warnings
+       (option requires that the espeak package be installed)
  -k\t Maximum number of log files
    \t  (this option must be supplied with the maximum number of log files to keep)
  -s\t Restart system after updates

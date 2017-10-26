@@ -4,7 +4,7 @@
 # Purpose: Update openSUSE Linux with the latest packages.
 #  Author: Dan Huckson, https://github.com/unodan
 ###############################################################################
-version=2.16
+version=2.17
 trap cancel_restart INT
 
 function speak {
@@ -52,10 +52,9 @@ while getopts ":alrvwk:s:h" opt; do
     r)  refresh=$true;;
     v)  verbose=$true;;
     w)  audible_warning=$true
-        rpm -q espeak
-        espeak_installed=$?
-        (( $espeak_installed )) && {
-            echo -e "The -w option requires that the espeak package be installed.\nPlease install the package espeak ( zypper install espeak ) and run the script again."
+        rpm -q espeak > /dev/null 2>&1
+        (( $? )) && {
+            echo -e "The -w option requires that the espeak package be installed.\nRemove the -w option or install the package espeak [ zypper install espeak ]"
             exit 5
         } 
         ;;
@@ -89,7 +88,7 @@ When the -w option is supplied, users are sent an audio beep and a spoken messag
  -r\t Refresh all enabled repostiories
  -v\t Verbosity (show maximum information)
  -w\t Enable audio warnings
-       (option requires that the espeak package be installed)
+   \t  (option requires that the espeak package be installed)
  -k\t Maximum number of log files
    \t  (this option must be supplied with the maximum number of log files to keep)
  -s\t Restart system after updates
@@ -113,15 +112,16 @@ echo -e "\nApplying updates to ($distribution) Version:${version_id}${agree_with
         echo -e "----------------------------------------" | tee -a $log_file
         zypper refresh | cut -d"'" -f2 | tee -a $log_file; err=${PIPESTATUS[0]}
         echo -e "----------------------------------------" | tee -a $log_file
-    } || zypper refresh > /dev/null; err=$?
+    } || { zypper refresh > /dev/null; err=$?; }
     
-    (( $err != 0 )) && { echo "An error ( $err ) occurred when refreshing repositories, exiting script." >&2; exit 60; } 
+    (( $err )) && { echo "An error ( $err ) occurred when refreshing repositories, exiting script." >&2; exit 60; } 
     echo -e "Refreshed `zypper repos | grep -e '| Yes ' | cut -d'|' -f3 | wc -l` repositories.\n" | tee -a $log_file 
 }
 
 (( $verbose )) && {
-    zypper -v -n update $auto_agree_with_licenses | sed '/Unknown media type in type/d; s/^   //; s/^CommitResult/\n\nCommitResult/; /^Additional rpm output:/d; :a;N;$!ba;s/\n  / /g' | sed ':a;N;$!ba;s/\nRetrieving: /, /g' | tee -a $log_file
-} || { zypper -v -n update $auto_agree_with_licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //; /package updates will NOT be installed:/d' | tee -a $log_file; }
+    zypper -v -n update $auto_agree_with_licenses | sed '/Unknown media type in type/d' | sed 's/^   //; s/^CommitResult/\n\nCommitResult/; /^Additional rpm output:/d; :a;N;$!ba;s/\n  / /g' | sed ':a;N;$!ba;s/\nRetrieving: /, /g' | tee -a $log_file
+    echo -e "\n" | tee -a $log_file
+} || zypper -v -n update $auto_agree_with_licenses | grep -P "^Nothing to do|^CommitResult  \(|The following \d{1}" | sed 's/The following //; /package updates will NOT be installed:/d' | tee -a $log_file
     
 err=${PIPESTATUS[0]}
 (( $err != 0 )) && { echo "An error ( $err ) occurred with ( $script ) exiting script." >&2; exit 70; } 
@@ -130,37 +130,47 @@ err=${PIPESTATUS[0]}
 sed -i 's/   dracut:/\ndracut:/g; s/^CommitResult/\nCommitResult/; /^Checking for running processes/d; /^There are some running programs/d' $log_file
 echo -e "\nStarted:  $date\n\nFinished: `date`\n" | tee -a $log_file
 
-(( $restart_timeout )) && { 
-    get_time_string $restart_timeout 
-    warning_message="Attention: Restarting system in$time_string"
-    
-    tty > /dev/null
-    (( $? == 1 )) && { 
-        pid=`ps -A | grep -m 1 $script | sed 's/^ *//' | cut -d" " -f1`   
-        message+="$warning_message, you can cancel restarting from the console by entering, \"sudo kill $pid\""
-    } || { 
-        message="$warning_message, you can cancel the scheduled restart by entering [ctrl] c at the console"
-        (( $gui_mode )) && message+=" or by clicking the cancel button in the x-windows dialog box." || message+="."
-    }
-    
-    (( $audible_warning )) && { 
-        speaker-test -p 1 -t sine -f 400 -l 1 > /dev/null 2>&1
-        echo -e "$message" | wall -n; speak "$message"
-    } || echo -e "$message" | wall -n 
-    
-    (( $gui_mode )) && {
-        echo -e "\n   $warning_message.   \n" | xmessage  -timeout $restart_timeout -button " Restart , Cancel " -file -
-        err=$?; (( $err == 0 )) || (( $err == 101 )) && restart_system=$true || cancel_restart
-    } || {
-        sleep $restart_timeout
-        restart_system=$true
-    }
-} || if [[ $restart_timeout == 0 ]]; then restart_system=$true; fi
+zypper ps -s | grep "The following running processes use deleted files"
 
+(( ! $? )) && {
+    (( $restart_timeout )) && { 
+        get_time_string $restart_timeout 
+        warning_message="Attention: Restarting system in$time_string"
+        
+        tty > /dev/null
+        (( $? == 1 )) && { 
+            pid=`ps -A | grep -m 1 $script | sed 's/^ *//' | cut -d" " -f1`   
+            message+="$warning_message, you can cancel restarting from the console by entering, \"sudo kill $pid\""
+        } || { 
+            message="$warning_message, you can cancel the scheduled restart by entering [ctrl] c at the console"
+            (( $gui_mode )) && message+=" or by clicking the cancel button in the x-windows dialog box." || message+="."
+        }
+        
+        (( $audible_warning )) && { 
+            speaker-test -p 1 -t sine -f 400 -l 1 > /dev/null 2>&1
+            echo -e "$message" | wall -n; speak "$message"
+        } || echo -e "$message" | wall -n 
+        
+        (( $gui_mode )) && {
+            echo -e "\n   $warning_message.   \n" | xmessage  -timeout $restart_timeout -button " Restart , Cancel " -file -
+            err=$?; (( $err == 0 )) || (( $err == 101 )) && restart_system=$true || cancel_restart
+        } || {
+            sleep $restart_timeout
+            restart_system=$true
+        }
+    } || if [[ $restart_timeout == 0 ]]; then restart_system=$true; fi
+
+    get_time_string $[$(date +%s) - $start_time]
+
+    (( $restart_system )) && { 
+        (( $audible_warning )) && speak "This system is going to restart now." 
+        echo -e "Restarted: `date`\n\nTotal run time$time_string.\n" | tee -a $log_file
+        init 6
+    } || { echo -e "Total run time$time_string.\n" | tee -a $log_file; exit 0; }
+} 
+
+zypper ps -s | sed '/No processes using deleted files found/d' | tee -a $log_file
 get_time_string $[$(date +%s) - $start_time]
+echo -e "Total run time$time_string.\n" | tee -a $log_file
 
-(( $restart_system )) && { 
-    (( $audible_warning )) && speak "This system is going to restart now." 
-    echo -e "Restarted: `date`\n\nTotal run time$time_string.\n" | tee -a $log_file
-    init 6
-} || echo -e "Total run time$time_string.\n" | tee -a $log_file
+
